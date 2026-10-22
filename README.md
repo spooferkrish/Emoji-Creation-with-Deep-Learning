@@ -82,7 +82,7 @@ The dataset used in this project is stored in Google Drive.
 
 **Google Drive Dataset Link:**
 
-[📁 Download FER2013 Dataset](YOUR_GOOGLE_DRIVE_DATASET_LINK_HERE)
+[📁 Download FER2013 Dataset](https://drive.google.com/drive/folders/1ouWUDzVDod6Y4OIeoXdpa0BTJsdWB_zd?usp=drive_link)
 
 > Replace `YOUR_GOOGLE_DRIVE_DATASET_LINK_HERE` with the actual Google Drive sharing URL.
 
