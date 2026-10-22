@@ -108,8 +108,9 @@ export default function App() {
       const preferredConstraints: MediaStreamConstraints = {
         video: {
           ...(chosenDevice?.deviceId ? { deviceId: { exact: chosenDevice.deviceId } } : {}),
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
+          width: { ideal: 640 },
+          height: { ideal: 480 },
+          aspectRatio: { ideal: 4 / 3 },
         },
         audio: false,
       }
@@ -134,7 +135,12 @@ export default function App() {
       if (VIRTUAL_CAMERA_PATTERN.test(videoTrack.label) && hardwareCamera && hardwareCamera.deviceId !== videoTrack.getSettings().deviceId) {
         stream.getTracks().forEach((track) => track.stop())
         stream = await navigator.mediaDevices.getUserMedia({
-          video: { deviceId: { exact: hardwareCamera.deviceId }, width: { ideal: 1280 }, height: { ideal: 720 } },
+          video: {
+            deviceId: { exact: hardwareCamera.deviceId },
+            width: { ideal: 640 },
+            height: { ideal: 480 },
+            aspectRatio: { ideal: 4 / 3 },
+          },
           audio: false,
         })
         videoTrack = stream.getVideoTracks()[0]

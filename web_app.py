@@ -55,29 +55,24 @@ def predict():
     if frame is None:
         return jsonify({"error": "The uploaded image could not be decoded."}), 400
 
-    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    # Equalization is used only for face location. The classifier still receives
-    # the original grayscale pixels it was trained on.
-    detection_frame = cv2.equalizeHist(gray)
-    faces = detector.detectMultiScale(
-        detection_frame, scaleFactor=1.1, minNeighbors=5, minSize=(48, 48)
-    )
-    if len(faces) == 0:
-        faces = detector.detectMultiScale(
-            detection_frame, scaleFactor=1.1, minNeighbors=3, minSize=(40, 40)
-        )
+    # Keep browser inference identical to the desktop camera path in gui.py.
+    # The model was verified with this 600x450, plain-grayscale face pipeline.
+    source_height, source_width = frame.shape[:2]
+    processing_frame = cv2.resize(frame, (600, 450))
+    gray = cv2.cvtColor(processing_frame, cv2.COLOR_BGR2GRAY)
+    faces = detector.detectMultiScale(gray, scaleFactor=1.3, minNeighbors=5)
     if len(faces) == 0:
         return jsonify({"face_detected": False, "message": "No face detected."})
 
     x, y, w, h = max(faces, key=lambda face: int(face[2]) * int(face[3]))
     face = cv2.resize(gray[y:y + h, x:x + w], (48, 48))
-    flipped_face = cv2.flip(face, 1)
-    zoomed_face = cv2.resize(face[3:45, 3:45], (48, 48), interpolation=cv2.INTER_LINEAR)
-    batch = np.stack((face, flipped_face, zoomed_face))[..., np.newaxis]
+    batch = face[np.newaxis, ..., np.newaxis]
     with model_lock:
-        views = model.predict(batch, verbose=0)
-    probabilities = (views[0] * 0.5) + (views[1] * 0.25) + (views[2] * 0.25)
+        probabilities = model.predict(batch, verbose=0)[0]
     index = int(np.argmax(probabilities))
+
+    scale_x = source_width / 600
+    scale_y = source_height / 450
 
     return jsonify({
         "face_detected": True,
@@ -87,7 +82,12 @@ def predict():
             emotion: float(probabilities[position])
             for position, emotion in enumerate(CLASSES)
         },
-        "face": {"x": int(x), "y": int(y), "width": int(w), "height": int(h)},
+        "face": {
+            "x": round(x * scale_x),
+            "y": round(y * scale_y),
+            "width": round(w * scale_x),
+            "height": round(h * scale_y),
+        },
     })
 
 
