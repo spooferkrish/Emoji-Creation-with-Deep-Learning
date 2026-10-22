@@ -91,15 +91,50 @@ export default function App() {
     setCameraMessage('Approve camera access in your browser to continue.')
     try {
       streamRef.current?.getTracks().forEach((track) => track.stop())
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: facingModeRef.current, width: { ideal: 1280 }, height: { ideal: 720 } },
+      const preferredConstraints: MediaStreamConstraints = {
+        video: {
+          facingMode: { ideal: facingModeRef.current },
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
         audio: false,
-      })
+      }
+      let stream: MediaStream
+      try {
+        stream = await navigator.mediaDevices.getUserMedia(preferredConstraints)
+      } catch (preferredError) {
+        const denied = preferredError instanceof DOMException &&
+          (preferredError.name === 'NotAllowedError' || preferredError.name === 'PermissionDeniedError')
+        if (denied) throw preferredError
+        // Some Windows laptop cameras do not expose facingMode or resolution constraints.
+        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+      }
+      const videoTrack = stream.getVideoTracks()[0]
+      if (!videoTrack) {
+        stream.getTracks().forEach((track) => track.stop())
+        throw new DOMException('No video track was returned.', 'NotFoundError')
+      }
       streamRef.current = stream
       if (videoRef.current) {
         videoRef.current.srcObject = stream
+        if (videoRef.current.readyState < HTMLMediaElement.HAVE_METADATA) {
+          await new Promise<void>((resolve, reject) => {
+            const timer = window.setTimeout(() => reject(new DOMException('Camera timed out.', 'AbortError')), 8000)
+            videoRef.current!.onloadedmetadata = () => {
+              window.clearTimeout(timer)
+              resolve()
+            }
+          })
+        }
         await videoRef.current.play()
       }
+      videoTrack.addEventListener('ended', () => {
+        if (streamRef.current === stream) {
+          setCamera('error')
+          setCameraMessage('The camera stream ended. Click Retry camera to reconnect.')
+          setLive(false)
+        }
+      })
       const devices = await navigator.mediaDevices.enumerateDevices()
       setCanSwitch(devices.filter((device) => device.kind === 'videoinput').length > 1)
       setCamera('active')
@@ -108,7 +143,16 @@ export default function App() {
     } catch (error) {
       const denied = error instanceof DOMException && (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError')
       setCamera(denied ? 'denied' : 'error')
-      setCameraMessage(denied ? 'Camera permission was denied. Allow access in browser settings, then retry.' : 'The camera could not start. Close other camera apps and retry.')
+      const message = error instanceof DOMException
+        ? error.name === 'NotReadableError'
+          ? 'Windows could not open the camera. Close Teams, Zoom, Camera, and other apps, then retry.'
+          : error.name === 'NotFoundError'
+            ? 'No camera was found. Check that the laptop camera is enabled in Windows settings.'
+            : error.name === 'AbortError'
+              ? 'The camera took too long to start. Retry the connection.'
+              : `Camera error: ${error.name}. Check browser camera permissions and retry.`
+        : 'The camera could not start. Check browser camera permissions and retry.'
+      setCameraMessage(denied ? 'Camera permission was denied. Select the camera icon in the address bar, allow access, then retry.' : message)
     }
   }
 
