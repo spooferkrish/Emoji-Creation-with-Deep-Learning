@@ -8,12 +8,15 @@ type Props = {
   live: boolean
   processing: boolean
   canSwitch: boolean
+  devices: Array<{ deviceId: string; label: string }>
+  selectedDeviceId: string
   message: string
   onStart: () => void
   onStop: () => void
   onCapture: () => void
   onToggleLive: () => void
   onSwitch: () => void
+  onSelectDevice: (deviceId: string) => void
 }
 
 export function CameraPanel(props: Props) {
@@ -37,6 +40,16 @@ export function CameraPanel(props: Props) {
         {props.processing && <div className="processing"><span />Reading expression…</div>}
       </div>
       <div className="camera-controls">
+        {props.devices.length > 0 && (
+          <label className="camera-select">
+            <span>Camera</span>
+            <select value={props.selectedDeviceId} onChange={(event) => props.onSelectDevice(event.target.value)}>
+              {props.devices.map((device, index) => (
+                <option value={device.deviceId} key={device.deviceId}>{device.label || `Camera ${index + 1}`}</option>
+              ))}
+            </select>
+          </label>
+        )}
         {!active ? (
           <button className="button primary" onClick={props.onStart} disabled={props.cameraState === 'requesting'}>
             {props.cameraState === 'error' || props.cameraState === 'denied' ? 'Retry camera' : 'Start camera'}

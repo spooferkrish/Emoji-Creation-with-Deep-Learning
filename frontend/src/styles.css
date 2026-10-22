@@ -87,6 +87,7 @@ button:focus-visible, a:focus-visible { outline: 3px solid var(--purple); outlin
 .processing span { width:8px;height:8px;border:1px solid var(--acid);border-top-color:transparent;border-radius:50%;animation:spin .7s linear infinite; }
 @keyframes spin { to{transform:rotate(360deg)} }
 .camera-controls { display:flex;flex-wrap:wrap;gap:9px;margin-top:16px; }
+.camera-select{min-height:42px;display:flex;align-items:center;border:1px solid var(--ink);background:rgba(255,255,255,.18)}.camera-select>span{padding:0 10px;font-size:9px;font-weight:800;letter-spacing:.1em;text-transform:uppercase}.camera-select select{align-self:stretch;max-width:230px;padding:0 28px 0 10px;border:0;border-left:1px solid var(--ink);background:transparent;font-size:10px;font-weight:700;color:var(--ink)}
 .button { min-height:42px;padding:0 17px;border:1px solid var(--ink);border-radius:0;background:transparent;font-size:10px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;cursor:pointer;transition:.2s; }
 .button:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 5px 0 rgba(16,23,19,.16)}
 .button:disabled{opacity:.4;cursor:not-allowed}.button.primary{background:var(--ink);color:#eef7e9}.button.quiet{background:rgba(255,255,255,.18)}

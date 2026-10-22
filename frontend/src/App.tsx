@@ -8,6 +8,13 @@ import type { ApiResponse, BackendState, CameraState, Emotion, HistoryItem, Pred
 
 const API_URL = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
 const LIVE_INTERVAL_MS = 1600
+const VIRTUAL_CAMERA_PATTERN = /virtual|phone|link|a12|obs|snap|droid|epoc|iriun/i
+const LAPTOP_CAMERA_PATTERN = /usb2\.0|integrated|built.?in|webcam|uvc|front/i
+
+function preferredCamera(devices: MediaDeviceInfo[]) {
+  const realCameras = devices.filter((device) => !VIRTUAL_CAMERA_PATTERN.test(device.label))
+  return realCameras.find((device) => LAPTOP_CAMERA_PATTERN.test(device.label)) || realCameras[0] || devices[0]
+}
 
 export default function App() {
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -16,7 +23,6 @@ export default function App() {
   const streamRef = useRef<MediaStream | null>(null)
   const detectingRef = useRef(false)
   const liveTimerRef = useRef<number | null>(null)
-  const facingModeRef = useRef<'user' | 'environment'>('user')
 
   const [backend, setBackend] = useState<BackendState>('checking')
   const [camera, setCamera] = useState<CameraState>('idle')
@@ -24,6 +30,8 @@ export default function App() {
   const [processing, setProcessing] = useState(false)
   const [live, setLive] = useState(false)
   const [canSwitch, setCanSwitch] = useState(false)
+  const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([])
+  const [selectedDeviceId, setSelectedDeviceId] = useState('')
   const [prediction, setPrediction] = useState<Prediction | null>(null)
   const [history, setHistory] = useState<HistoryItem[]>([])
   const [noFace, setNoFace] = useState(false)
@@ -81,7 +89,7 @@ export default function App() {
 
   useEffect(() => () => stopCamera(), [stopCamera])
 
-  const startCamera = async () => {
+  const startCamera = async (requestedDeviceId?: string) => {
     if (!navigator.mediaDevices?.getUserMedia) {
       setCamera('error')
       setCameraMessage('This browser does not support camera access.')
@@ -91,9 +99,15 @@ export default function App() {
     setCameraMessage('Approve camera access in your browser to continue.')
     try {
       streamRef.current?.getTracks().forEach((track) => track.stop())
+      const knownDevices = (await navigator.mediaDevices.enumerateDevices())
+        .filter((device) => device.kind === 'videoinput')
+      const requested = requestedDeviceId
+        ? knownDevices.find((device) => device.deviceId === requestedDeviceId)
+        : knownDevices.find((device) => device.deviceId === selectedDeviceId)
+      const chosenDevice = requested || preferredCamera(knownDevices)
       const preferredConstraints: MediaStreamConstraints = {
         video: {
-          facingMode: { ideal: facingModeRef.current },
+          ...(chosenDevice?.deviceId ? { deviceId: { exact: chosenDevice.deviceId } } : {}),
           width: { ideal: 1280 },
           height: { ideal: 720 },
         },
@@ -109,10 +123,21 @@ export default function App() {
         // Some Windows laptop cameras do not expose facingMode or resolution constraints.
         stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false })
       }
-      const videoTrack = stream.getVideoTracks()[0]
+      let videoTrack = stream.getVideoTracks()[0]
       if (!videoTrack) {
         stream.getTracks().forEach((track) => track.stop())
         throw new DOMException('No video track was returned.', 'NotFoundError')
+      }
+      let availableDevices = (await navigator.mediaDevices.enumerateDevices())
+        .filter((device) => device.kind === 'videoinput')
+      const hardwareCamera = preferredCamera(availableDevices)
+      if (VIRTUAL_CAMERA_PATTERN.test(videoTrack.label) && hardwareCamera && hardwareCamera.deviceId !== videoTrack.getSettings().deviceId) {
+        stream.getTracks().forEach((track) => track.stop())
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { deviceId: { exact: hardwareCamera.deviceId }, width: { ideal: 1280 }, height: { ideal: 720 } },
+          audio: false,
+        })
+        videoTrack = stream.getVideoTracks()[0]
       }
       streamRef.current = stream
       if (videoRef.current) {
@@ -135,11 +160,14 @@ export default function App() {
           setLive(false)
         }
       })
-      const devices = await navigator.mediaDevices.enumerateDevices()
-      setCanSwitch(devices.filter((device) => device.kind === 'videoinput').length > 1)
+      availableDevices = (await navigator.mediaDevices.enumerateDevices())
+        .filter((device) => device.kind === 'videoinput')
+      setVideoDevices(availableDevices)
+      setCanSwitch(availableDevices.length > 1)
+      setSelectedDeviceId(videoTrack.getSettings().deviceId || hardwareCamera?.deviceId || '')
       setCamera('active')
-      setCameraMessage('Camera active.')
-      setNotice('Camera ready')
+      setCameraMessage(`${videoTrack.label || 'Camera'} active.`)
+      setNotice(`${videoTrack.label || 'Laptop camera'} ready`)
     } catch (error) {
       const denied = error instanceof DOMException && (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError')
       setCamera(denied ? 'denied' : 'error')
@@ -157,8 +185,16 @@ export default function App() {
   }
 
   const switchCamera = async () => {
-    facingModeRef.current = facingModeRef.current === 'user' ? 'environment' : 'user'
-    await startCamera()
+    if (!videoDevices.length) return
+    const currentIndex = videoDevices.findIndex((device) => device.deviceId === selectedDeviceId)
+    const next = videoDevices[(currentIndex + 1) % videoDevices.length]
+    setSelectedDeviceId(next.deviceId)
+    await startCamera(next.deviceId)
+  }
+
+  const selectCamera = async (deviceId: string) => {
+    setSelectedDeviceId(deviceId)
+    if (camera === 'active') await startCamera(deviceId)
   }
 
   const detect = useCallback(async () => {
@@ -257,7 +293,7 @@ export default function App() {
         </section>
 
         <div className="dashboard-grid">
-          <CameraPanel videoRef={videoRef} overlayRef={overlayRef} cameraState={camera} prediction={prediction} live={live} processing={processing} canSwitch={canSwitch} message={cameraMessage} onStart={startCamera} onStop={stopCamera} onCapture={detect} onToggleLive={toggleLive} onSwitch={switchCamera} />
+          <CameraPanel videoRef={videoRef} overlayRef={overlayRef} cameraState={camera} prediction={prediction} live={live} processing={processing} canSwitch={canSwitch} devices={videoDevices} selectedDeviceId={selectedDeviceId} message={cameraMessage} onStart={() => startCamera()} onStop={stopCamera} onCapture={detect} onToggleLive={toggleLive} onSwitch={switchCamera} onSelectDevice={selectCamera} />
           <div className="dashboard-side"><EmotionResult prediction={prediction} backend={backend} processing={processing} noFace={noFace} /><AvatarCreator predicted={currentEmotion} displayed={displayedAvatar} manual={manualAvatar !== null} galleryOpen={galleryOpen} onSelect={setManualAvatar} onReset={() => setManualAvatar(null)} onToggleGallery={() => setGalleryOpen((open) => !open)} /></div>
           <EmotionStatistics history={history} onClear={() => { setHistory([]); setNotice('Session statistics cleared') }} />
         </div>
