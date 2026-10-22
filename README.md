@@ -1,18 +1,28 @@
-# Photo to Emoji
+# EMOJI AI — Real-Time Emotion Recognition
 
-This app recognizes seven facial expressions from a webcam and displays matching emoji. A trained model is included, so the webcam app works without a dataset. `logo.png` is optional.
+EMOJI AI recognizes seven facial expressions from a browser webcam and matches the result to an expressive avatar. A trained TensorFlow model is included. The web UI reports actual model output, confidence, recent detections, and session statistics without recording video or inventing sample results.
 
-## Windows setup
+## Run the browser app on Windows
 
 Use Python 3.12 and run in this folder:
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe gui.py
+cd frontend
+npm install
+npm run build
+cd ..
+.\.venv\Scripts\python.exe web_app.py
 ```
 
-The app opens an OpenCV window and requires a webcam and camera permission. Press Q to quit. If `python` opens the Microsoft Store instead of Python, use the full path to a local Python 3.12 executable to create the virtual environment.
+Open `http://127.0.0.1:5000`, then select **Start camera**. The camera is requested only after that click, audio is never requested, and frames are not stored. If `python` opens the Microsoft Store, use the full path to your local Python 3.12 executable.
+
+### Frontend development
+
+Run the backend with `web_app.py`, then run `npm run dev` inside `frontend`. Vite proxies `/api` requests to `http://127.0.0.1:5000`. Set `VITE_API_URL` only when the API is hosted somewhere else. For a cross-origin deployment, set `FRONTEND_ORIGIN` on the backend to the exact frontend origin.
+
+The original OpenCV desktop interface is still available with `.\.venv\Scripts\python.exe gui.py`.
 
 ## Optional model training
 
