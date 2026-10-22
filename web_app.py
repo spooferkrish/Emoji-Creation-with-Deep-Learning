@@ -56,15 +56,27 @@ def predict():
         return jsonify({"error": "The uploaded image could not be decoded."}), 400
 
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    faces = detector.detectMultiScale(gray, scaleFactor=1.2, minNeighbors=5, minSize=(48, 48))
+    # Equalization is used only for face location. The classifier still receives
+    # the original grayscale pixels it was trained on.
+    detection_frame = cv2.equalizeHist(gray)
+    faces = detector.detectMultiScale(
+        detection_frame, scaleFactor=1.1, minNeighbors=5, minSize=(48, 48)
+    )
+    if len(faces) == 0:
+        faces = detector.detectMultiScale(
+            detection_frame, scaleFactor=1.1, minNeighbors=3, minSize=(40, 40)
+        )
     if len(faces) == 0:
         return jsonify({"face_detected": False, "message": "No face detected."})
 
     x, y, w, h = max(faces, key=lambda face: int(face[2]) * int(face[3]))
     face = cv2.resize(gray[y:y + h, x:x + w], (48, 48))
-    batch = face[np.newaxis, :, :, np.newaxis]
+    flipped_face = cv2.flip(face, 1)
+    zoomed_face = cv2.resize(face[3:45, 3:45], (48, 48), interpolation=cv2.INTER_LINEAR)
+    batch = np.stack((face, flipped_face, zoomed_face))[..., np.newaxis]
     with model_lock:
-        probabilities = model.predict(batch, verbose=0)[0]
+        views = model.predict(batch, verbose=0)
+    probabilities = (views[0] * 0.5) + (views[1] * 0.25) + (views[2] * 0.25)
     index = int(np.argmax(probabilities))
 
     return jsonify({

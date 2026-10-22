@@ -220,6 +220,8 @@ export default function App() {
       setBackend('connected')
       if (!result.face_detected || !result.emotion || result.confidence === undefined || !result.probabilities) {
         setNoFace(true)
+        setPrediction(null)
+        setManualAvatar(null)
         clearOverlay()
         return
       }
@@ -236,6 +238,7 @@ export default function App() {
       drawFace(next.face)
     } catch (error) {
       setBackend('disconnected')
+      setPrediction(null)
       setNotice(error instanceof DOMException && error.name === 'TimeoutError' ? 'Inference timed out. Try again.' : 'Could not reach the AI model.')
     } finally {
       detectingRef.current = false
@@ -265,7 +268,7 @@ export default function App() {
     return () => window.clearTimeout(timer)
   }, [notice])
 
-  const displayedAvatar = manualAvatar || prediction?.emotion || 'neutral'
+  const displayedAvatar = manualAvatar || prediction?.emotion || null
   const currentEmotion = useMemo(() => prediction?.emotion || null, [prediction])
 
   return (

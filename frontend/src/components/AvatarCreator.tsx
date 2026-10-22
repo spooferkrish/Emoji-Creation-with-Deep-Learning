@@ -3,7 +3,7 @@ import type { Emotion } from '../types'
 
 type Props = {
   predicted: Emotion | null
-  displayed: Emotion
+  displayed: Emotion | null
   manual: boolean
   galleryOpen: boolean
   onSelect: (emotion: Emotion) => void
@@ -12,8 +12,9 @@ type Props = {
 }
 
 export function AvatarCreator(props: Props) {
-  const meta = EMOTION_META[props.displayed]
+  const meta = props.displayed ? EMOTION_META[props.displayed] : null
   const download = () => {
+    if (!meta || !props.displayed) return
     const link = document.createElement('a')
     link.href = meta.image
     link.download = `emoji-ai-${props.displayed}.png`
@@ -25,15 +26,15 @@ export function AvatarCreator(props: Props) {
         <div><span className="eyebrow">03 / AVATAR</span><h2 id="avatar-title">Your current expression</h2></div>
         <span className={props.manual ? 'mode manual' : 'mode'}>{props.manual ? 'Manual preview' : 'AI matched'}</span>
       </div>
-      <div className="avatar-display" style={{ '--emotion-color': meta.color } as React.CSSProperties}>
+      <div className={`avatar-display ${meta ? '' : 'empty'}`} style={{ '--emotion-color': meta?.color || '#d6ded8' } as React.CSSProperties}>
         <div className="avatar-orbit"><i /><i /><i /></div>
-        <img key={props.displayed} src={meta.image} alt={`${meta.label} emoji avatar`} />
-        <strong>{meta.label}</strong>
+        {meta ? <img key={props.displayed} src={meta.image} alt={`${meta.label} emoji avatar`} /> : <span className="avatar-placeholder">?</span>}
+        <strong>{meta?.label || 'Awaiting a face scan'}</strong>
       </div>
       <div className="avatar-actions">
         <button className="text-button" onClick={props.onToggleGallery}>{props.galleryOpen ? 'Hide expressions' : 'View all expressions'} <span>↗</span></button>
         <button className="button quiet" onClick={props.onReset} disabled={!props.manual && !props.predicted}>Reset avatar</button>
-        <button className="button primary" onClick={download}>Download PNG</button>
+        <button className="button primary" onClick={download} disabled={!meta}>Download PNG</button>
       </div>
       {props.galleryOpen && (
         <div className="expression-grid">
